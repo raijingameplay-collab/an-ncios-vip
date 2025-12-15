@@ -40,7 +40,7 @@ export default function Index() {
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
-    state: '',
+    state: 'all',
     city: '',
     minPrice: '',
     maxPrice: '',
@@ -83,7 +83,7 @@ export default function Index() {
       .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
     // Apply filters
-    if (filters.state) {
+    if (filters.state && filters.state !== 'all') {
       query = query.eq('state', filters.state);
     }
     if (filters.city) {

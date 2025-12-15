@@ -53,7 +53,7 @@ export function ListingFilters({ filters, onFiltersChange, availableTags }: Filt
 
   const clearFilters = () => {
     onFiltersChange({
-      state: '',
+      state: 'all',
       city: '',
       minPrice: '',
       maxPrice: '',
@@ -61,7 +61,7 @@ export function ListingFilters({ filters, onFiltersChange, availableTags }: Filt
     });
   };
 
-  const hasActiveFilters = filters.state || filters.city || filters.minPrice || filters.maxPrice || filters.tags.length > 0;
+  const hasActiveFilters = (filters.state && filters.state !== 'all') || filters.city || filters.minPrice || filters.maxPrice || filters.tags.length > 0;
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -72,7 +72,7 @@ export function ListingFilters({ filters, onFiltersChange, availableTags }: Filt
             <SelectValue placeholder="Selecione o estado" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
             {STATES.map(state => (
               <SelectItem key={state} value={state}>{state}</SelectItem>
             ))}
@@ -143,7 +143,7 @@ export function ListingFilters({ filters, onFiltersChange, availableTags }: Filt
               Filtros
               {hasActiveFilters && (
                 <Badge variant="secondary" className="ml-2">
-                  {filters.tags.length + (filters.state ? 1 : 0) + (filters.city ? 1 : 0) + (filters.minPrice || filters.maxPrice ? 1 : 0)}
+                  {filters.tags.length + (filters.state && filters.state !== 'all' ? 1 : 0) + (filters.city ? 1 : 0) + (filters.minPrice || filters.maxPrice ? 1 : 0)}
                 </Badge>
               )}
             </Button>
