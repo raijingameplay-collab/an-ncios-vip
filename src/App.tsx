@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AdminRoute } from "@/components/auth/AdminRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
@@ -30,13 +32,13 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
             
-            {/* Advertiser panel routes */}
-            <Route path="/painel" element={<PainelIndex />} />
-            <Route path="/painel/itens" element={<PainelItens />} />
-            <Route path="/painel/novo-item" element={<NovoItem />} />
+            {/* Advertiser panel routes - Protected */}
+            <Route path="/painel" element={<ProtectedRoute><PainelIndex /></ProtectedRoute>} />
+            <Route path="/painel/itens" element={<ProtectedRoute><PainelItens /></ProtectedRoute>} />
+            <Route path="/painel/novo-item" element={<ProtectedRoute><NovoItem /></ProtectedRoute>} />
             
-            {/* Admin routes */}
-            <Route path="/admin/moderacao" element={<AdminModeracao />} />
+            {/* Admin routes - Admin/Moderator only */}
+            <Route path="/admin/moderacao" element={<AdminRoute><AdminModeracao /></AdminRoute>} />
             
             {/* Redirects for old routes */}
             <Route path="/auth" element={<Navigate to="/login" replace />} />

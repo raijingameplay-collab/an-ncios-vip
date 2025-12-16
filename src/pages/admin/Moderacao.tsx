@@ -1,7 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
-import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,22 +29,9 @@ interface PendingReport {
 }
 
 export default function AdminModeracao() {
-  const { user, loading: authLoading } = useAuth();
-  const { isAdminOrModerator, loading: roleLoading } = useUserRole();
-  const navigate = useNavigate();
   const [pendingListings, setPendingListings] = useState<PendingListing[]>([]);
   const [pendingReports, setPendingReports] = useState<PendingReport[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!authLoading && !roleLoading) {
-      if (!user) {
-        navigate('/login');
-      } else if (!isAdminOrModerator) {
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, roleLoading, isAdminOrModerator, navigate]);
 
   useEffect(() => {
     async function fetchData() {
@@ -69,12 +53,10 @@ export default function AdminModeracao() {
       setLoading(false);
     }
 
-    if (isAdminOrModerator) {
-      fetchData();
-    }
-  }, [isAdminOrModerator]);
+    fetchData();
+  }, []);
 
-  if (authLoading || roleLoading || loading) {
+  if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center py-20">
@@ -82,10 +64,6 @@ export default function AdminModeracao() {
         </div>
       </Layout>
     );
-  }
-
-  if (!isAdminOrModerator) {
-    return null;
   }
 
   return (

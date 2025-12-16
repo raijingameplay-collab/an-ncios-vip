@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,18 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { user, signIn, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/painel';
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate(from, { replace: true });
+    }
+  }, [user, authLoading, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,15 +38,13 @@ export default function Login() {
         description: error.message,
         variant: 'destructive',
       });
+      setLoading(false);
     } else {
       toast({
         title: 'Bem-vindo!',
         description: 'Login realizado com sucesso.',
       });
-      navigate('/painel');
     }
-
-    setLoading(false);
   };
 
   return (
