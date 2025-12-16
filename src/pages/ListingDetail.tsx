@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-// Note: This page is now accessible via /item/:id
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
+  Calendar,
+  DollarSign,
+  CheckCircle,
+  Share2,
+  Heart,
 } from 'lucide-react';
 
 interface ListingDetail {
@@ -49,12 +54,14 @@ interface ListingDetail {
   views_count: number;
   contact_clicks: number;
   is_featured: boolean;
+  created_at: string;
   advertiser_profiles: {
     display_name: string;
     whatsapp: string | null;
     telegram: string | null;
     instagram: string | null;
     is_verified: boolean;
+    bio: string | null;
   };
 }
 
@@ -98,16 +105,17 @@ export default function ListingDetail() {
             whatsapp,
             telegram,
             instagram,
-            is_verified
+            is_verified,
+            bio
           )
         `)
         .eq('id', id)
         .eq('status', 'approved')
-        .single();
+        .maybeSingle();
 
       if (error || !listingData) {
         console.error('Error fetching listing:', error);
-        navigate('/');
+        setLoading(false);
         return;
       }
 
@@ -143,7 +151,7 @@ export default function ListingDetail() {
     };
 
     fetchListing();
-  }, [id, navigate]);
+  }, [id]);
 
   const handleContactClick = async (type: 'whatsapp' | 'telegram' | 'instagram') => {
     if (!listing) return;
@@ -157,11 +165,32 @@ export default function ListingDetail() {
     const { advertiser_profiles: profile } = listing;
 
     if (type === 'whatsapp' && profile.whatsapp) {
-      window.open(`https://wa.me/${profile.whatsapp.replace(/\D/g, '')}`, '_blank');
+      const message = encodeURIComponent(`Olá! Vi seu anúncio "${listing.title}" e gostaria de mais informações.`);
+      window.open(`https://wa.me/${profile.whatsapp.replace(/\D/g, '')}?text=${message}`, '_blank');
     } else if (type === 'telegram' && profile.telegram) {
       window.open(`https://t.me/${profile.telegram.replace('@', '')}`, '_blank');
     } else if (type === 'instagram' && profile.instagram) {
       window.open(`https://instagram.com/${profile.instagram.replace('@', '')}`, '_blank');
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: listing?.title,
+          url: url,
+        });
+      } catch (err) {
+        // User cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: 'Link copiado!',
+        description: 'O link do anúncio foi copiado para sua área de transferência.',
+      });
     }
   };
 
@@ -197,16 +226,34 @@ export default function ListingDetail() {
     setSubmittingReport(false);
   };
 
+  // Keyboard navigation for gallery
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (photos.length <= 1) return;
+      if (e.key === 'ArrowLeft') {
+        setCurrentPhotoIndex(i => i === 0 ? photos.length - 1 : i - 1);
+      } else if (e.key === 'ArrowRight') {
+        setCurrentPhotoIndex(i => i === photos.length - 1 ? 0 : i + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [photos.length]);
+
   if (loading) {
     return (
       <Layout>
-        <div className="container py-8">
+        <div className="container py-8 max-w-6xl">
+          <Skeleton className="h-10 w-24 mb-6" />
           <div className="grid md:grid-cols-2 gap-8">
-            <Skeleton className="aspect-[4/5] rounded-lg" />
+            <Skeleton className="aspect-[4/5] rounded-xl" />
             <div className="space-y-4">
-              <Skeleton className="h-10 w-3/4" />
+              <Skeleton className="h-8 w-3/4" />
               <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-12 w-1/3" />
               <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-14 w-full" />
             </div>
           </div>
         </div>
@@ -217,31 +264,40 @@ export default function ListingDetail() {
   if (!listing) {
     return (
       <Layout>
-        <div className="container py-8 text-center">
-          <p className="text-xl text-muted-foreground">Anúncio não encontrado</p>
+        <div className="container py-16 text-center">
+          <div className="text-6xl mb-4">😕</div>
+          <h1 className="text-2xl font-bold mb-2">Anúncio não encontrado</h1>
+          <p className="text-muted-foreground mb-6">
+            Este anúncio pode ter sido removido ou não está mais disponível.
+          </p>
+          <Button asChild>
+            <Link to="/">Voltar ao catálogo</Link>
+          </Button>
         </div>
       </Layout>
     );
   }
 
   const { advertiser_profiles: profile } = listing;
+  const hasContactInfo = profile.whatsapp || profile.telegram || profile.instagram;
 
   return (
     <Layout>
-      <div className="container py-8">
+      <div className="container py-8 max-w-6xl">
+        {/* Back button */}
         <Button
           variant="ghost"
-          className="mb-4"
+          className="mb-6"
           onClick={() => navigate(-1)}
         >
           <ChevronLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
           {/* Photo gallery */}
           <div className="space-y-4">
-            <div className="aspect-[4/5] relative rounded-lg overflow-hidden bg-muted">
+            <div className="aspect-[4/5] relative rounded-xl overflow-hidden bg-muted shadow-lg">
               {photos.length > 0 ? (
                 <>
                   <img
@@ -249,43 +305,69 @@ export default function ListingDetail() {
                     alt={listing.title}
                     className="w-full h-full object-cover"
                   />
+                  
+                  {/* Photo counter */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                    {currentPhotoIndex + 1} / {photos.length}
+                  </div>
+
+                  {/* Navigation arrows */}
                   {photos.length > 1 && (
                     <>
                       <Button
                         variant="secondary"
                         size="icon"
-                        className="absolute left-2 top-1/2 -translate-y-1/2"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
                         onClick={() => setCurrentPhotoIndex(i => i === 0 ? photos.length - 1 : i - 1)}
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-5 w-5" />
                       </Button>
                       <Button
                         variant="secondary"
                         size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
                         onClick={() => setCurrentPhotoIndex(i => i === photos.length - 1 ? 0 : i + 1)}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-5 w-5" />
                       </Button>
                     </>
                   )}
+
+                  {/* Badges overlay */}
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    {listing.is_featured && (
+                      <Badge className="gradient-bg shadow-lg">
+                        <Star className="h-3 w-3 mr-1 fill-current" />
+                        Premium
+                      </Badge>
+                    )}
+                    {profile.is_verified && (
+                      <Badge className="bg-success text-success-foreground shadow-lg">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Verificado
+                      </Badge>
+                    )}
+                  </div>
                 </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  <span className="text-6xl">📷</span>
+                <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-br from-muted to-muted/50">
+                  <span className="text-8xl mb-4">📷</span>
+                  <p>Sem fotos disponíveis</p>
                 </div>
               )}
             </div>
 
             {/* Thumbnails */}
             {photos.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                 {photos.map((photo, index) => (
                   <button
                     key={photo.id}
                     onClick={() => setCurrentPhotoIndex(index)}
-                    className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
-                      index === currentPhotoIndex ? 'border-primary' : 'border-transparent'
+                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      index === currentPhotoIndex 
+                        ? 'border-primary ring-2 ring-primary/20' 
+                        : 'border-transparent hover:border-muted-foreground/30'
                     }`}
                   >
                     <img
@@ -301,150 +383,220 @@ export default function ListingDetail() {
 
           {/* Details */}
           <div className="space-y-6">
+            {/* Title and badges */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                {listing.is_featured && (
-                  <Badge className="bg-accent">
-                    <Star className="h-3 w-3 mr-1" />
-                    Premium
-                  </Badge>
-                )}
-                {profile.is_verified && (
-                  <Badge variant="secondary">Verificado</Badge>
-                )}
-              </div>
-
-              <h1 className="font-display text-3xl font-bold">{listing.title}</h1>
+              <h1 className="font-display text-2xl md:text-3xl font-bold leading-tight">
+                {listing.title}
+              </h1>
               
-              <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  <span>
-                    {listing.city}, {listing.state}
-                    {listing.neighborhood && ` - ${listing.neighborhood}`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Eye className="h-4 w-4" />
-                  <span>{listing.views_count} views</span>
-                </div>
+              {/* Location */}
+              <div className="flex items-center gap-2 mt-3 text-muted-foreground">
+                <MapPin className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  {listing.city}, {listing.state}
+                  {listing.neighborhood && ` • ${listing.neighborhood}`}
+                </span>
               </div>
 
-              {listing.price && (
-                <p className="mt-4 text-3xl font-bold text-primary">
-                  R$ {listing.price.toLocaleString('pt-BR')}
-                </p>
-              )}
-              {listing.price_info && (
-                <p className="text-muted-foreground">{listing.price_info}</p>
-              )}
+              {/* Stats */}
+              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Eye className="h-4 w-4" />
+                  {listing.views_count.toLocaleString('pt-BR')} visualizações
+                </span>
+              </div>
             </div>
 
-            {/* Tags */}
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tags.map(tag => (
-                  <Badge key={tag.id} variant="outline">{tag.name}</Badge>
-                ))}
+            {/* Price */}
+            {listing.price && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl md:text-4xl font-bold text-primary">
+                  R$ {listing.price.toLocaleString('pt-BR')}
+                </span>
+                {listing.price_info && (
+                  <span className="text-muted-foreground">/ {listing.price_info}</span>
+                )}
               </div>
             )}
 
+            {/* Info cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {listing.age && (
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-primary/10">
+                      <Calendar className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Idade</p>
+                      <p className="font-semibold">{listing.age} anos</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {listing.price && (
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-primary/10">
+                      <DollarSign className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Valor</p>
+                      <p className="font-semibold">R$ {listing.price.toLocaleString('pt-BR')}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Tags/Categories */}
+            {tags.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-2">Categorias</h3>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map(tag => (
+                    <Badge key={tag.id} variant="secondary" className="px-3 py-1">
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
             {/* Description */}
             <div>
-              <h2 className="font-semibold mb-2">Descrição</h2>
-              <p className="text-muted-foreground whitespace-pre-wrap">
+              <h3 className="font-semibold mb-3">Descrição</h3>
+              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {listing.description}
               </p>
             </div>
 
+            <Separator />
+
             {/* Advertiser info */}
-            <Card>
+            <Card className="border-primary/20">
               <CardContent className="p-4">
-                <p className="font-semibold">{profile.display_name}</p>
-                {profile.is_verified && (
-                  <p className="text-sm text-muted-foreground">Anunciante verificado</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-xl font-bold text-primary">
+                      {profile.display_name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold">{profile.display_name}</p>
+                    {profile.is_verified && (
+                      <p className="text-sm text-success flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Anunciante verificado
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {profile.bio && (
+                  <p className="mt-3 text-sm text-muted-foreground">{profile.bio}</p>
                 )}
               </CardContent>
             </Card>
 
             {/* Contact buttons */}
-            <div className="flex flex-col gap-3">
-              {profile.whatsapp && (
-                <Button
-                  size="lg"
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  onClick={() => handleContactClick('whatsapp')}
-                >
-                  <MessageCircle className="h-5 w-5 mr-2" />
-                  WhatsApp
-                </Button>
-              )}
-              {profile.telegram && (
-                <Button
-                  size="lg"
-                  className="w-full bg-blue-500 hover:bg-blue-600"
-                  onClick={() => handleContactClick('telegram')}
-                >
-                  <Send className="h-5 w-5 mr-2" />
-                  Telegram
-                </Button>
-              )}
-              {profile.instagram && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleContactClick('instagram')}
-                >
-                  <Instagram className="h-5 w-5 mr-2" />
-                  Instagram
-                </Button>
-              )}
-            </div>
-
-            {/* Report button */}
-            <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" className="text-muted-foreground">
-                  <Flag className="h-4 w-4 mr-2" />
-                  Denunciar anúncio
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Denunciar anúncio</DialogTitle>
-                  <DialogDescription>
-                    Informe o motivo da denúncia. Nossa equipe analisará o caso.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <Select value={reportReason} onValueChange={setReportReason}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o motivo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="misleading">Conteúdo enganoso</SelectItem>
-                      <SelectItem value="fake">Perfil falso</SelectItem>
-                      <SelectItem value="inappropriate">Conteúdo inapropriado</SelectItem>
-                      <SelectItem value="scam">Golpe</SelectItem>
-                      <SelectItem value="other">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Textarea
-                    placeholder="Detalhes adicionais (opcional)"
-                    value={reportDetails}
-                    onChange={(e) => setReportDetails(e.target.value)}
-                  />
-                  <Button
-                    className="w-full"
-                    onClick={handleReport}
-                    disabled={!reportReason || submittingReport}
-                  >
-                    Enviar denúncia
-                  </Button>
+            {hasContactInfo ? (
+              <div className="space-y-3">
+                <h3 className="font-semibold">Entrar em contato</h3>
+                <div className="flex flex-col gap-2">
+                  {profile.whatsapp && (
+                    <Button
+                      size="lg"
+                      className="w-full bg-[#25D366] hover:bg-[#20BD5A] text-white"
+                      onClick={() => handleContactClick('whatsapp')}
+                    >
+                      <MessageCircle className="h-5 w-5 mr-2" />
+                      Conversar no WhatsApp
+                    </Button>
+                  )}
+                  {profile.telegram && (
+                    <Button
+                      size="lg"
+                      className="w-full bg-[#0088CC] hover:bg-[#0077B5] text-white"
+                      onClick={() => handleContactClick('telegram')}
+                    >
+                      <Send className="h-5 w-5 mr-2" />
+                      Conversar no Telegram
+                    </Button>
+                  )}
+                  {profile.instagram && (
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => handleContactClick('instagram')}
+                    >
+                      <Instagram className="h-5 w-5 mr-2" />
+                      Ver no Instagram
+                    </Button>
+                  )}
                 </div>
-              </DialogContent>
-            </Dialog>
+              </div>
+            ) : (
+              <Card className="bg-muted/50">
+                <CardContent className="p-4 text-center text-muted-foreground">
+                  <p>Nenhuma informação de contato disponível</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={handleShare}>
+                <Share2 className="h-4 w-4 mr-2" />
+                Compartilhar
+              </Button>
+              
+              <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" className="text-muted-foreground">
+                    <Flag className="h-4 w-4 mr-2" />
+                    Denunciar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Denunciar anúncio</DialogTitle>
+                    <DialogDescription>
+                      Informe o motivo da denúncia. Nossa equipe analisará o caso com atenção.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <Select value={reportReason} onValueChange={setReportReason}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o motivo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="misleading">Conteúdo enganoso</SelectItem>
+                        <SelectItem value="fake">Perfil falso</SelectItem>
+                        <SelectItem value="inappropriate">Conteúdo inapropriado</SelectItem>
+                        <SelectItem value="scam">Golpe / Fraude</SelectItem>
+                        <SelectItem value="other">Outro motivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Descreva o problema (opcional)"
+                      value={reportDetails}
+                      onChange={(e) => setReportDetails(e.target.value)}
+                      rows={4}
+                    />
+                    <Button
+                      className="w-full"
+                      onClick={handleReport}
+                      disabled={!reportReason || submittingReport}
+                    >
+                      {submittingReport ? 'Enviando...' : 'Enviar denúncia'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
       </div>
