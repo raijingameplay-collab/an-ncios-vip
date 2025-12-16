@@ -164,6 +164,8 @@ export interface ListingCard {
   advertiser_name: string;
   is_verified: boolean;
   has_active_highlight: boolean;
+  highlight_url?: string | null;
+  highlight_type?: 'image' | 'video' | null;
 }
 
 /**

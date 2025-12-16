@@ -73,7 +73,7 @@ export default function Index() {
           priority_level,
           advertiser_profiles!inner(display_name, is_verified),
           listing_photos(photo_url, is_main),
-          highlights(id, is_active, expires_at)
+          highlights(id, content_url, content_type, is_active, expires_at)
         `)
         .eq('status', 'approved');
 
@@ -142,9 +142,10 @@ export default function Index() {
           || item.listing_photos?.[0]?.photo_url 
           || null;
         
-        const hasActiveHighlight = item.highlights?.some(
+        // Find active highlight
+        const activeHighlight = item.highlights?.find(
           (h: any) => h.is_active && new Date(h.expires_at) > new Date()
-        ) || false;
+        );
 
         return {
           id: item.id,
@@ -158,7 +159,9 @@ export default function Index() {
           main_photo_url: mainPhoto,
           advertiser_name: item.advertiser_profiles?.display_name || 'Anônimo',
           is_verified: item.advertiser_profiles?.is_verified || false,
-          has_active_highlight: hasActiveHighlight,
+          has_active_highlight: !!activeHighlight,
+          highlight_url: activeHighlight?.content_url || null,
+          highlight_type: activeHighlight?.content_type as 'image' | 'video' | null || null,
         };
       });
 

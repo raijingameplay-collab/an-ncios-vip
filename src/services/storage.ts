@@ -154,7 +154,8 @@ export const FILE_LIMITS = {
     allowedTypes: ['image/jpeg', 'image/png', 'application/pdf'],
   },
   HIGHLIGHT: {
-    maxSizeMB: 10,
-    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'],
+    maxSizeMB: 50, // Increased for video files
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'],
+    maxDurationSeconds: 30,
   },
 };
