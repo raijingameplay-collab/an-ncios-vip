@@ -13,6 +13,7 @@ import ListingDetail from "./pages/ListingDetail";
 import PainelIndex from "./pages/painel/Index";
 import PainelItens from "./pages/painel/Itens";
 import NovoItem from "./pages/painel/NovoItem";
+import EditarItem from "./pages/painel/EditarItem";
 import AdminModeracao from "./pages/admin/Moderacao";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/painel" element={<ProtectedRoute><PainelIndex /></ProtectedRoute>} />
             <Route path="/painel/itens" element={<ProtectedRoute><PainelItens /></ProtectedRoute>} />
             <Route path="/painel/novo-item" element={<ProtectedRoute><NovoItem /></ProtectedRoute>} />
+            <Route path="/painel/editar/:id" element={<ProtectedRoute><EditarItem /></ProtectedRoute>} />
             
             {/* Admin routes - Admin/Moderator only */}
             <Route path="/admin/moderacao" element={<AdminRoute><AdminModeracao /></AdminRoute>} />
