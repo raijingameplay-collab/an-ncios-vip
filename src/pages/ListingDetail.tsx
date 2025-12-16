@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+// Note: This page is now accessible via /item/:id
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';

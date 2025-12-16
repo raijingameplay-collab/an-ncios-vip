@@ -1,18 +1,18 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, Eye, MousePointer } from 'lucide-react';
+import { Loader2, Plus, Eye, MousePointer, FileText, Settings } from 'lucide-react';
 
-export default function Dashboard() {
+export default function PainelIndex() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      navigate('/login');
     }
   }, [user, loading, navigate]);
 
@@ -30,10 +30,12 @@ export default function Dashboard() {
     <Layout>
       <div className="container py-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="font-display text-3xl font-bold">Meus Anúncios</h1>
-          <Button className="gradient-bg">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Anúncio
+          <h1 className="font-display text-3xl font-bold">Painel do Anunciante</h1>
+          <Button asChild className="gradient-bg">
+            <Link to="/painel/novo-item">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Anúncio
+            </Link>
           </Button>
         </div>
 
@@ -76,12 +78,35 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div className="text-center py-12 border rounded-lg bg-muted/30">
-          <p className="text-muted-foreground">Você ainda não tem anúncios.</p>
-          <Button className="mt-4 gradient-bg">
-            <Plus className="h-4 w-4 mr-2" />
-            Criar primeiro anúncio
-          </Button>
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card className="hover:border-primary/50 transition-colors">
+            <Link to="/painel/itens">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Meus Anúncios
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Gerencie seus anúncios publicados e pendentes
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+          <Card className="hover:border-primary/50 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                Configurações
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Edite seu perfil e preferências
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </Layout>

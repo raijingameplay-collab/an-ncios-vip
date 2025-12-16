@@ -35,7 +35,7 @@ export function Header() {
       </Link>
       {user && isAdvertiser && (
         <Link 
-          to="/dashboard" 
+          to="/painel" 
           className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           onClick={() => setOpen(false)}
         >
@@ -44,7 +44,7 @@ export function Header() {
       )}
       {user && isAdminOrModerator && (
         <Link 
-          to="/admin" 
+          to="/admin/moderacao" 
           className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           onClick={() => setOpen(false)}
         >
@@ -82,13 +82,13 @@ export function Header() {
                 </div>
                 <DropdownMenuSeparator />
                 {isAdvertiser && (
-                  <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+                  <DropdownMenuItem onClick={() => navigate('/painel')}>
                     <LayoutDashboard className="mr-2 h-4 w-4" />
                     Meus Anúncios
                   </DropdownMenuItem>
                 )}
                 {isAdminOrModerator && (
-                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                  <DropdownMenuItem onClick={() => navigate('/admin/moderacao')}>
                     <Shield className="mr-2 h-4 w-4" />
                     Painel Admin
                   </DropdownMenuItem>
@@ -102,10 +102,10 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" onClick={() => navigate('/auth')}>
+              <Button variant="ghost" onClick={() => navigate('/login')}>
                 Entrar
               </Button>
-              <Button onClick={() => navigate('/auth?mode=signup')} className="gradient-bg">
+              <Button onClick={() => navigate('/cadastro')} className="gradient-bg">
                 Anunciar
               </Button>
             </div>
@@ -123,10 +123,10 @@ export function Header() {
                 <NavLinks />
                 {!user && (
                   <>
-                    <Button variant="ghost" onClick={() => { navigate('/auth'); setOpen(false); }}>
+                    <Button variant="ghost" onClick={() => { navigate('/login'); setOpen(false); }}>
                       Entrar
                     </Button>
-                    <Button onClick={() => { navigate('/auth?mode=signup'); setOpen(false); }} className="gradient-bg">
+                    <Button onClick={() => { navigate('/cadastro'); setOpen(false); }} className="gradient-bg">
                       Anunciar
                     </Button>
                   </>
