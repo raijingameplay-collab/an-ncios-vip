@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
+import { Link } from 'react-router-dom';
 import { useAdvertiserProfile } from '@/hooks/useAdvertiserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
@@ -29,17 +28,9 @@ const statusLabels: Record<string, { label: string; variant: 'default' | 'second
 };
 
 export default function PainelItens() {
-  const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useAdvertiserProfile();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/login');
-    }
-  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     async function fetchListings() {
@@ -62,7 +53,7 @@ export default function PainelItens() {
     }
   }, [profile, profileLoading]);
 
-  if (authLoading || profileLoading || loading) {
+  if (profileLoading || loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center py-20">
