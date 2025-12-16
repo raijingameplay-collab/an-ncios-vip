@@ -1,27 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
 import { ListingCard } from '@/components/catalog/ListingCard';
 import { ListingCardSkeleton } from '@/components/catalog/ListingCardSkeleton';
 import { ListingFilters } from '@/components/catalog/ListingFilters';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2 } from 'lucide-react';
-
-interface Listing {
-  id: string;
-  title: string;
-  price: number | null;
-  price_info: string | null;
-  state: string;
-  city: string;
-  neighborhood: string | null;
-  views_count: number;
-  is_featured: boolean;
-  priority_level: number;
-  main_photo_url?: string;
-  has_active_highlight?: boolean;
-}
+import { Button } from '@/components/ui/button';
+import { Search, Loader2, SlidersHorizontal } from 'lucide-react';
+import type { ListingCard as ListingCardType } from '@/types/database';
 
 interface Tag {
   id: string;
@@ -32,7 +18,7 @@ interface Tag {
 const PAGE_SIZE = 12;
 
 export default function Index() {
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<ListingCardType[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,6 +32,9 @@ export default function Index() {
     maxPrice: '',
     tags: [] as string[],
   });
+
+  // Ref for infinite scroll
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const fetchTags = async () => {
     const { data } = await supabase
@@ -63,101 +52,135 @@ export default function Index() {
       setLoadingMore(true);
     }
 
-    let query = supabase
-      .from('listings')
-      .select(`
-        id,
-        title,
-        price,
-        price_info,
-        state,
-        city,
-        neighborhood,
-        views_count,
-        is_featured,
-        priority_level
-      `)
-      .eq('status', 'approved')
-      .order('priority_level', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+    try {
+      // Query otimizada com join de fotos e highlights
+      let query = supabase
+        .from('listings')
+        .select(`
+          id,
+          title,
+          price,
+          price_info,
+          state,
+          city,
+          neighborhood,
+          views_count,
+          is_featured,
+          priority_level,
+          advertiser_profiles!inner(display_name, is_verified),
+          listing_photos(photo_url, is_main),
+          highlights(id, is_active, expires_at)
+        `)
+        .eq('status', 'approved')
+        .order('is_featured', { ascending: false })
+        .order('priority_level', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
-    // Apply filters
-    if (filters.state && filters.state !== 'all') {
-      query = query.eq('state', filters.state);
-    }
-    if (filters.city) {
-      query = query.ilike('city', `%${filters.city}%`);
-    }
-    if (filters.minPrice) {
-      query = query.gte('price', parseFloat(filters.minPrice));
-    }
-    if (filters.maxPrice) {
-      query = query.lte('price', parseFloat(filters.maxPrice));
-    }
-    if (searchQuery) {
-      query = query.ilike('title', `%${searchQuery}%`);
-    }
+      // Apply filters
+      if (filters.state && filters.state !== 'all') {
+        query = query.eq('state', filters.state);
+      }
+      if (filters.city) {
+        query = query.ilike('city', `%${filters.city}%`);
+      }
+      if (filters.minPrice) {
+        query = query.gte('price', parseFloat(filters.minPrice));
+      }
+      if (filters.maxPrice) {
+        query = query.lte('price', parseFloat(filters.maxPrice));
+      }
+      if (searchQuery) {
+        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+      }
 
-    const { data, error } = await query;
+      const { data, error } = await query;
 
-    if (error) {
-      console.error('Error fetching listings:', error);
-      return;
-    }
+      if (error) {
+        console.error('Error fetching listings:', error);
+        return;
+      }
 
-    // Fetch main photos for each listing
-    const listingsWithPhotos = await Promise.all(
-      (data || []).map(async (listing) => {
-        const { data: photos } = await supabase
-          .from('listing_photos')
-          .select('photo_url')
-          .eq('listing_id', listing.id)
-          .eq('is_main', true)
-          .limit(1);
-
-        // Check for active highlights
-        const { data: highlights } = await supabase
-          .from('highlights')
-          .select('id')
-          .eq('listing_id', listing.id)
-          .eq('is_active', true)
-          .gt('expires_at', new Date().toISOString())
-          .limit(1);
+      // Transform data to ListingCard format
+      const transformedListings: ListingCardType[] = (data || []).map((item: any) => {
+        const mainPhoto = item.listing_photos?.find((p: any) => p.is_main)?.photo_url 
+          || item.listing_photos?.[0]?.photo_url 
+          || null;
+        
+        const hasActiveHighlight = item.highlights?.some(
+          (h: any) => h.is_active && new Date(h.expires_at) > new Date()
+        ) || false;
 
         return {
-          ...listing,
-          main_photo_url: photos?.[0]?.photo_url,
-          has_active_highlight: (highlights?.length || 0) > 0,
+          id: item.id,
+          title: item.title,
+          city: item.city,
+          state: item.state,
+          price: item.price,
+          age: null,
+          is_featured: item.is_featured,
+          views_count: item.views_count,
+          main_photo_url: mainPhoto,
+          advertiser_name: item.advertiser_profiles?.display_name || 'Anônimo',
+          is_verified: item.advertiser_profiles?.is_verified || false,
+          has_active_highlight: hasActiveHighlight,
         };
-      })
-    );
+      });
 
-    if (reset) {
-      setListings(listingsWithPhotos);
-    } else {
-      setListings(prev => [...prev, ...listingsWithPhotos]);
+      // Sort: highlights first, then featured, then rest
+      transformedListings.sort((a, b) => {
+        if (a.has_active_highlight && !b.has_active_highlight) return -1;
+        if (!a.has_active_highlight && b.has_active_highlight) return 1;
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return 0;
+      });
+
+      if (reset) {
+        setListings(transformedListings);
+      } else {
+        setListings(prev => [...prev, ...transformedListings]);
+      }
+
+      setHasMore((data?.length || 0) === PAGE_SIZE);
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-
-    setHasMore((data?.length || 0) === PAGE_SIZE);
-    setLoading(false);
-    setLoadingMore(false);
   }, [filters, searchQuery]);
 
+  // Initial load
   useEffect(() => {
     fetchTags();
   }, []);
 
+  // Reload when filters change
   useEffect(() => {
     setPage(0);
     fetchListings(0, true);
   }, [fetchListings]);
 
-  const loadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchListings(nextPage);
-  };
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchListings(nextPage);
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, page, fetchListings]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,6 +219,14 @@ export default function Index() {
               </Button>
             </div>
           </form>
+
+          {/* Quick stats */}
+          <div className="mt-8 flex items-center justify-center gap-8 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-foreground">{listings.length}+</span>
+              anúncios
+            </span>
+          </div>
         </div>
       </section>
 
@@ -203,17 +234,36 @@ export default function Index() {
       <section className="py-8 md:py-12">
         <div className="container">
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Sidebar filters */}
-            <aside className="lg:w-64 flex-shrink-0">
-              <ListingFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                availableTags={tags}
-              />
+            {/* Sidebar filters - desktop */}
+            <aside className="hidden lg:block lg:w-64 flex-shrink-0">
+              <div className="sticky top-20">
+                <ListingFilters
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  availableTags={tags}
+                />
+              </div>
             </aside>
 
-            {/* Listings grid */}
+            {/* Main content */}
             <div className="flex-1">
+              {/* Mobile filters */}
+              <div className="lg:hidden mb-6">
+                <ListingFilters
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  availableTags={tags}
+                />
+              </div>
+
+              {/* Results header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">
+                  {loading ? 'Carregando...' : `${listings.length} anúncios encontrados`}
+                </h2>
+              </div>
+
+              {/* Listings grid */}
               {loading ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {Array.from({ length: 8 }).map((_, i) => (
@@ -221,13 +271,24 @@ export default function Index() {
                   ))}
                 </div>
               ) : listings.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-xl text-muted-foreground">
+                <div className="text-center py-16 px-4">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-semibold mb-2">
                     Nenhum anúncio encontrado
+                  </h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Tente ajustar os filtros ou fazer uma nova busca para encontrar o que procura.
                   </p>
-                  <p className="mt-2 text-muted-foreground">
-                    Tente ajustar os filtros ou fazer uma nova busca
-                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-6"
+                    onClick={() => {
+                      setFilters({ state: 'all', city: '', minPrice: '', maxPrice: '', tags: [] });
+                      setSearchQuery('');
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -236,27 +297,27 @@ export default function Index() {
                       <div
                         key={listing.id}
                         className="animate-fade-in"
-                        style={{ animationDelay: `${index * 50}ms` }}
+                        style={{ animationDelay: `${Math.min(index, 11) * 50}ms` }}
                       >
                         <ListingCard listing={listing} />
                       </div>
                     ))}
                   </div>
 
-                  {/* Load more */}
-                  {hasMore && (
-                    <div className="mt-8 text-center">
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={loadMore}
-                        disabled={loadingMore}
-                      >
-                        {loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Carregar mais
-                      </Button>
-                    </div>
-                  )}
+                  {/* Infinite scroll trigger */}
+                  <div ref={loadMoreRef} className="mt-8 flex justify-center">
+                    {loadingMore && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Carregando mais anúncios...</span>
+                      </div>
+                    )}
+                    {!hasMore && listings.length > 0 && (
+                      <p className="text-muted-foreground text-sm">
+                        Você chegou ao fim dos resultados
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
             </div>
