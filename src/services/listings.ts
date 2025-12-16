@@ -30,7 +30,7 @@ export async function getApprovedListings(
       id, title, city, state, price, age, is_featured, views_count, priority_level,
       advertiser_profiles!inner(display_name, is_verified),
       listing_photos(photo_url, is_main),
-      highlights(id, is_active, expires_at)
+      highlights(id, content_url, content_type, is_active, expires_at)
     `)
     .eq('status', 'approved');
 
@@ -82,24 +82,31 @@ export async function getApprovedListings(
   if (error) throw error;
 
   // Transformar para ListingCard
-  const listings: ListingCard[] = (data || []).map((item: any) => ({
-    id: item.id,
-    title: item.title,
-    city: item.city,
-    state: item.state,
-    price: item.price,
-    age: item.age,
-    is_featured: item.is_featured,
-    views_count: item.views_count,
-    main_photo_url: item.listing_photos?.find((p: any) => p.is_main)?.photo_url 
-      || item.listing_photos?.[0]?.photo_url 
-      || null,
-    advertiser_name: item.advertiser_profiles?.display_name || 'Anônimo',
-    is_verified: item.advertiser_profiles?.is_verified || false,
-    has_active_highlight: item.highlights?.some(
+  const listings: ListingCard[] = (data || []).map((item: any) => {
+    // Find active highlight
+    const activeHighlight = item.highlights?.find(
       (h: any) => h.is_active && new Date(h.expires_at) > new Date()
-    ) || false,
-  }));
+    );
+
+    return {
+      id: item.id,
+      title: item.title,
+      city: item.city,
+      state: item.state,
+      price: item.price,
+      age: item.age,
+      is_featured: item.is_featured,
+      views_count: item.views_count,
+      main_photo_url: item.listing_photos?.find((p: any) => p.is_main)?.photo_url 
+        || item.listing_photos?.[0]?.photo_url 
+        || null,
+      advertiser_name: item.advertiser_profiles?.display_name || 'Anônimo',
+      is_verified: item.advertiser_profiles?.is_verified || false,
+      has_active_highlight: !!activeHighlight,
+      highlight_url: activeHighlight?.content_url || null,
+      highlight_type: activeHighlight?.content_type as 'image' | 'video' | null || null,
+    };
+  });
 
   return { listings, hasMore: (data?.length || 0) === PAGE_SIZE };
 }

@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { StoryUploader } from '@/components/stories';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Eye, Edit, Trash2, AlertCircle, Video, Sparkles } from 'lucide-react';
 
 interface Listing {
   id: string;
@@ -31,6 +32,7 @@ interface Listing {
   created_at: string;
   rejection_reason: string | null;
   listing_photos: { photo_url: string; is_main: boolean }[];
+  highlights?: { id: string; is_active: boolean; expires_at: string }[];
 }
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -47,21 +49,26 @@ export default function PainelItens() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [storyListingId, setStoryListingId] = useState<string | null>(null);
+
+  const fetchListings = async () => {
+    if (!profile?.id) return;
+
+    const { data } = await supabase
+      .from('listings')
+      .select(`
+        id, title, city, state, status, views_count, contact_clicks, created_at, rejection_reason,
+        listing_photos(photo_url, is_main),
+        highlights(id, is_active, expires_at)
+      `)
+      .eq('advertiser_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    setListings(data || []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    async function fetchListings() {
-      if (!profile?.id) return;
-
-      const { data } = await supabase
-        .from('listings')
-        .select('id, title, city, state, status, views_count, contact_clicks, created_at, rejection_reason, listing_photos(photo_url, is_main)')
-        .eq('advertiser_id', profile.id)
-        .order('created_at', { ascending: false });
-
-      setListings(data || []);
-      setLoading(false);
-    }
-
     if (!profileLoading && profile) {
       fetchListings();
     } else if (!profileLoading && !profile) {
@@ -98,6 +105,12 @@ export default function PainelItens() {
   const getMainPhoto = (listing: Listing) => {
     const mainPhoto = listing.listing_photos?.find(p => p.is_main);
     return mainPhoto?.photo_url || listing.listing_photos?.[0]?.photo_url;
+  };
+
+  const hasActiveStory = (listing: Listing) => {
+    return listing.highlights?.some(
+      h => h.is_active && new Date(h.expires_at) > new Date()
+    ) || false;
   };
 
   if (profileLoading || loading) {
@@ -140,7 +153,7 @@ export default function PainelItens() {
                 <CardContent className="p-4">
                   <div className="flex gap-4">
                     {/* Thumbnail */}
-                    <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-muted">
+                    <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-muted relative">
                       {getMainPhoto(listing) ? (
                         <img
                           src={getMainPhoto(listing)}
@@ -152,15 +165,24 @@ export default function PainelItens() {
                           <Eye className="h-6 w-6" />
                         </div>
                       )}
+                      {hasActiveStory(listing) && (
+                        <div className="absolute inset-0 ring-2 ring-primary ring-offset-1 rounded-lg" />
+                      )}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1">
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
                         <h3 className="font-semibold truncate">{listing.title}</h3>
                         <Badge variant={statusLabels[listing.status]?.variant || 'secondary'}>
                           {statusLabels[listing.status]?.label || listing.status}
                         </Badge>
+                        {hasActiveStory(listing) && (
+                          <Badge className="bg-accent text-accent-foreground">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Story Ativo
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {listing.city}, {listing.state}
@@ -183,7 +205,17 @@ export default function PainelItens() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      {listing.status === 'approved' && !hasActiveStory(listing) && (
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => setStoryListingId(listing.id)}
+                          title="Adicionar Story"
+                        >
+                          <Video className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button variant="outline" size="icon" asChild>
                         <Link to={`/item/${listing.id}`}>
                           <Eye className="h-4 w-4" />
@@ -231,6 +263,17 @@ export default function PainelItens() {
           </div>
         )}
       </div>
+
+      {/* Story Uploader */}
+      <StoryUploader
+        open={!!storyListingId}
+        onOpenChange={(open) => !open && setStoryListingId(null)}
+        listingId={storyListingId || ''}
+        onSuccess={() => {
+          setStoryListingId(null);
+          fetchListings();
+        }}
+      />
     </Layout>
   );
 }
