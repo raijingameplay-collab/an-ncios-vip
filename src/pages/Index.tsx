@@ -3,10 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Layout } from '@/components/layout/Layout';
 import { ListingCard } from '@/components/catalog/ListingCard';
 import { ListingCardSkeleton } from '@/components/catalog/ListingCardSkeleton';
-import { ListingFilters } from '@/components/catalog/ListingFilters';
+import { ListingFilters, ListingFiltersState } from '@/components/catalog/ListingFilters';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, SlidersHorizontal } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 import type { ListingCard as ListingCardType } from '@/types/database';
 
 interface Tag {
@@ -25,12 +25,14 @@ export default function Index() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<ListingFiltersState>({
     state: 'all',
     city: '',
     minPrice: '',
     maxPrice: '',
-    tags: [] as string[],
+    minAge: '',
+    maxAge: '',
+    tags: [],
   });
 
   // Ref for infinite scroll
@@ -40,7 +42,8 @@ export default function Index() {
     const { data } = await supabase
       .from('service_tags')
       .select('id, name, slug')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .order('name');
     
     if (data) setTags(data);
   };
@@ -53,7 +56,7 @@ export default function Index() {
     }
 
     try {
-      // Query otimizada com join de fotos e highlights
+      // Build base query
       let query = supabase
         .from('listings')
         .select(`
@@ -64,6 +67,7 @@ export default function Index() {
           state,
           city,
           neighborhood,
+          age,
           views_count,
           is_featured,
           priority_level,
@@ -71,28 +75,43 @@ export default function Index() {
           listing_photos(photo_url, is_main),
           highlights(id, is_active, expires_at)
         `)
-        .eq('status', 'approved')
-        .order('is_featured', { ascending: false })
-        .order('priority_level', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+        .eq('status', 'approved');
 
-      // Apply filters
+      // Apply location filters
       if (filters.state && filters.state !== 'all') {
         query = query.eq('state', filters.state);
       }
       if (filters.city) {
         query = query.ilike('city', `%${filters.city}%`);
       }
+
+      // Apply price filters
       if (filters.minPrice) {
         query = query.gte('price', parseFloat(filters.minPrice));
       }
       if (filters.maxPrice) {
         query = query.lte('price', parseFloat(filters.maxPrice));
       }
+
+      // Apply age filters
+      if (filters.minAge) {
+        query = query.gte('age', parseInt(filters.minAge));
+      }
+      if (filters.maxAge) {
+        query = query.lte('age', parseInt(filters.maxAge));
+      }
+
+      // Apply search query
       if (searchQuery) {
         query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
       }
+
+      // Apply ordering
+      query = query
+        .order('is_featured', { ascending: false })
+        .order('priority_level', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
       const { data, error } = await query;
 
@@ -101,8 +120,24 @@ export default function Index() {
         return;
       }
 
+      // If tags filter is active, we need to filter by tags
+      let filteredData = data || [];
+      
+      if (filters.tags.length > 0) {
+        // Fetch listing IDs that have the selected tags
+        const { data: taggedListings } = await supabase
+          .from('listing_tags')
+          .select('listing_id')
+          .in('tag_id', filters.tags);
+
+        if (taggedListings) {
+          const taggedIds = new Set(taggedListings.map(t => t.listing_id));
+          filteredData = filteredData.filter(item => taggedIds.has(item.id));
+        }
+      }
+
       // Transform data to ListingCard format
-      const transformedListings: ListingCardType[] = (data || []).map((item: any) => {
+      const transformedListings: ListingCardType[] = filteredData.map((item: any) => {
         const mainPhoto = item.listing_photos?.find((p: any) => p.is_main)?.photo_url 
           || item.listing_photos?.[0]?.photo_url 
           || null;
@@ -117,7 +152,7 @@ export default function Index() {
           city: item.city,
           state: item.state,
           price: item.price,
-          age: null,
+          age: item.age,
           is_featured: item.is_featured,
           views_count: item.views_count,
           main_photo_url: mainPhoto,
@@ -142,7 +177,12 @@ export default function Index() {
         setListings(prev => [...prev, ...transformedListings]);
       }
 
-      setHasMore((data?.length || 0) === PAGE_SIZE);
+      // Check if there's more data
+      const hasMoreData = filters.tags.length > 0 
+        ? transformedListings.length === PAGE_SIZE 
+        : (data?.length || 0) === PAGE_SIZE;
+      setHasMore(hasMoreData);
+
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -188,6 +228,19 @@ export default function Index() {
     fetchListings(0, true);
   };
 
+  const handleClearAll = () => {
+    setFilters({
+      state: 'all',
+      city: '',
+      minPrice: '',
+      maxPrice: '',
+      minAge: '',
+      maxAge: '',
+      tags: [],
+    });
+    setSearchQuery('');
+  };
+
   return (
     <Layout>
       {/* Hero Section */}
@@ -219,14 +272,6 @@ export default function Index() {
               </Button>
             </div>
           </form>
-
-          {/* Quick stats */}
-          <div className="mt-8 flex items-center justify-center gap-8 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-foreground">{listings.length}+</span>
-              anúncios
-            </span>
-          </div>
         </div>
       </section>
 
@@ -235,7 +280,7 @@ export default function Index() {
         <div className="container">
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Sidebar filters - desktop */}
-            <aside className="hidden lg:block lg:w-64 flex-shrink-0">
+            <aside className="hidden lg:block lg:w-72 flex-shrink-0">
               <div className="sticky top-20">
                 <ListingFilters
                   filters={filters}
@@ -259,7 +304,7 @@ export default function Index() {
               {/* Results header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold">
-                  {loading ? 'Carregando...' : `${listings.length} anúncios encontrados`}
+                  {loading ? 'Carregando...' : `${listings.length} anúncio${listings.length !== 1 ? 's' : ''} encontrado${listings.length !== 1 ? 's' : ''}`}
                 </h2>
               </div>
 
@@ -282,12 +327,9 @@ export default function Index() {
                   <Button 
                     variant="outline" 
                     className="mt-6"
-                    onClick={() => {
-                      setFilters({ state: 'all', city: '', minPrice: '', maxPrice: '', tags: [] });
-                      setSearchQuery('');
-                    }}
+                    onClick={handleClearAll}
                   >
-                    Limpar filtros
+                    Limpar todos os filtros
                   </Button>
                 </div>
               ) : (

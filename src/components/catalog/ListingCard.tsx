@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Eye, Star, Sparkles } from 'lucide-react';
+import { MapPin, Eye, Star, Sparkles, Calendar } from 'lucide-react';
 
 interface ListingCardProps {
   listing: {
@@ -12,6 +12,7 @@ interface ListingCardProps {
     state: string;
     city: string;
     neighborhood?: string | null;
+    age?: number | null;
     views_count: number;
     is_featured: boolean;
     main_photo_url?: string | null;
@@ -85,6 +86,12 @@ export function ListingCard({ listing }: ListingCardProps) {
             <span className="line-clamp-1">
               {listing.city}, {listing.state}
             </span>
+            {listing.age && (
+              <span className="ml-auto flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {listing.age} anos
+              </span>
+            )}
           </div>
           
           <div className="mt-3 flex items-end justify-between">
